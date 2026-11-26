@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hệ Thống Giám Sát & Điều Khiển IoT</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: linear-gradient(135deg, #eef2f7 0%, #dce7f5 100%);
+      color: #1e293b;
+      min-height: 100vh;
+      padding: 20px 14px 32px;
+      display: flex;
+      justify-content: center;
+    }
+    .container { width: 100%; max-width: 440px; }
+    .hidden { display: none !important; }
+    .header { text-align: center; margin-bottom: 18px; }
+    .header h1 { font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: 0.3px; }
+    .header p { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+    .panel {
+      background: #ffffff;
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.07);
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .panel-temp .panel-header { color: #dc2626; }
+    .panel-hum .panel-header { color: #0284c7; }
+    .panel-led .panel-header { color: #475569; }
+    .panel-admin .panel-header { color: #7c3aed; }
+
+    .user-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      background: #ffffff;
+      padding: 10px 14px;
+      border-radius: 14px;
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+    }
+    .role-tag {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+    .role-tag.admin { background: #ede9fe; color: #6d28d9; }
+    .btn-logout {
+      border: none;
+      background: #e2e8f0;
+      color: #334155;
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-bottom: 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 15px;
+    }
+    .err-msg { color: #dc2626; font-size: 13px; margin-top: 8px; text-align: center; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .metric-box { border-radius: 14px; padding: 14px 10px; text-align: center; border: 1px solid transparent; }
+    .box-temp { background: linear-gradient(180deg, #fff5f5 0%, #fee2e2 100%); border-color: #fecaca; }
+    .box-hum { background: linear-gradient(180deg, #f0f9ff 0%, #e0f2fe 100%); border-color: #bae6fd; }
+    .sensor-label { font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px; }
+    .metric-value { font-size: 30px; font-weight: 800; line-height: 1.1; }
+    .box-temp .metric-value { color: #dc2626; }
+    .box-hum .metric-value { color: #0284c7; }
+    .unit { font-size: 16px; font-weight: 700; margin-left: 2px; opacity: 0.85; }
+
+    .led-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+    }
+    .led-row span { font-size: 14px; font-weight: 600; color: #334155; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #e2e8f0;
+      color: #475569;
+    }
+    .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; }
+    .badge.on { background: #dcfce7; color: #15803d; }
+    .badge.on .dot { background: #22c55e; box-shadow: 0 0 8px #22c55e; }
+    .badge.off { background: #fee2e2; color: #b91c1c; }
+    .badge.off .dot { background: #ef4444; }
+
+    .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .btn {
+      width: 100%;
+      padding: 13px 10px;
+      font-size: 15px;
+      font-weight: 700;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      color: #ffffff;
+      transition: transform 0.12s ease;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-login { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); }
+    .btn-on { background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); box-shadow: 0 4px 12px rgba(22, 163, 74, 0.28); }
+    .btn-off { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); box-shadow: 0 4px 12px rgba(220, 38, 38, 0.28); }
+    .btn-admin { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); }
+
+    .footer-status { text-align: center; margin-top: 6px; }
+    .status-pill {
+      display: inline-block;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      color: #475569;
+    }
+    .update-time { font-size: 11px; color: #64748b; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>GIÁM SÁT &amp; ĐIỀU KHIỂN IoT</h1>
+      <p>Điều khiển từ xa qua Cloud Firebase</p>
+    </div>
+
+    <!-- Màn hình đăng nhập -->
+    <div id="loginBox" class="panel">
+      <div class="panel-header" style="color:#0f172a;">Đăng nhập hệ thống</div>
+      <input type="email" id="email" placeholder="Email (test@iot.com hoặc admin@iot.com)">
+      <input type="password" id="password" placeholder="Mật khẩu">
+      <button class="btn btn-login" onclick="dangNhap()">ĐĂNG NHẬP</button>
+      <div id="loginErr" class="err-msg"></div>
+    </div>
+
+    <!-- Màn hình điều khiển chính -->
+    <div id="appBox" class="hidden">
+      <div class="user-bar">
+        <span id="roleTag" class="role-tag"></span>
+        <button class="btn-logout" onclick="dangXuat()">Đăng xuất</button>
+      </div>
+
+      <div class="panel panel-temp">
+        <div class="panel-header"><span>Nhiệt độ (°C)</span></div>
+        <div class="grid-2">
+          <div class="metric-box box-temp">
+            <div class="sensor-label">Cảm biến 1 (S1)</div>
+            <div class="metric-value"><span id="t1">--</span><span class="unit">&deg;C</span></div>
+          </div>
+          <div class="metric-box box-temp">
+            <div class="sensor-label">Cảm biến 2 (S2)</div>
+            <div class="metric-value"><span id="t2">--</span><span class="unit">&deg;C</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel panel-hum">
+        <div class="panel-header"><span>Độ ẩm (%)</span></div>
+        <div class="grid-2">
+          <div class="metric-box box-hum">
+            <div class="sensor-label">Cảm biến 1 (S1)</div>
+            <div class="metric-value"><span id="h1">--</span><span class="unit">%</span></div>
+          </div>
+          <div class="metric-box box-hum">
+            <div class="sensor-label">Cảm biến 2 (S2)</div>
+            <div class="metric-value"><span id="h2">--</span><span class="unit">%</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel panel-led">
+        <div class="panel-header"><span>Điều khiển đèn LED</span></div>
+        <div class="led-row">
+          <span>Trạng thái hiện tại</span>
+          <div id="ledBadge" class="badge">
+            <span class="dot"></span>
+            <span id="ledText">ĐANG TẢI...</span>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-on" onclick="dieuKhienLed(1)">BẬT LED</button>
+          <button class="btn btn-off" onclick="dieuKhienLed(0)">TẮT LED</button>
+        </div>
+      </div>
+
+      <!-- Chỉ hiện khi đăng nhập bằng tài khoản admin@iot.com -->
+      <div id="adminBox" class="panel panel-admin hidden">
+        <div class="panel-header"><span>Quản lý ESP32 (Admin)</span></div>
+        <button class="btn btn-admin" onclick="resetEsp32()">RESET MẠCH ESP32 TỪ XA</button>
+      </div>
+
+      <div class="footer-status">
+        <div id="status" class="status-pill">Đang kết nối dữ liệu...</div>
+        <div id="lastUpdate" class="update-time"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+      const firebaseConfig = {
+  apiKey: "AIzaSyA0qBEsdoLBcze0JnRD47vZzfY-k0yxnk4",
+  authDomain: "fir-cam-bien-nhiet-do-69743.firebaseapp.com",
+  databaseURL: "https://fir-cam-bien-nhiet-do-69743-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "fir-cam-bien-nhiet-do-69743",
+  storageBucket: "fir-cam-bien-nhiet-do-69743.firebasestorage.app",
+  messagingSenderId: "939016971069",
+  appId: "1:939016971069:web:07c5cfa57b20bbf42b1b54"
+};
+
+    const ADMIN_EMAIL = "admin@iot.com";
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.database();
+    let camBienRef = null;
+
+    function dangNhap() {
+      const email = document.getElementById("email").value.trim();
+      const pass = document.getElementById("password").value;
+      document.getElementById("loginErr").innerText = "";
+      auth.signInWithEmailAndPassword(email, pass).catch(() => {
+        document.getElementById("loginErr").innerText = "Sai tài khoản hoặc mật khẩu!";
+      });
+    }
+
+    function dangXuat() {
+      if (camBienRef) camBienRef.off();
+      auth.signOut();
+    }
+
+    function capNhatTrangThaiLedUI(state) {
+      const badge = document.getElementById('ledBadge');
+      const txt = document.getElementById('ledText');
+      if (state === 1) {
+        badge.className = "badge on";
+        txt.innerText = "ĐANG BẬT";
+      } else {
+        badge.className = "badge off";
+        txt.innerText = "ĐANG TẮT";
+      }
+    }
+
+    function setStatus(msg, bg, color) {
+      const st = document.getElementById('status');
+      st.innerText = msg;
+      st.style.background = bg;
+      st.style.color = color;
+    }
+
+    function dieuKhienLed(state) {
+      document.getElementById('ledBadge').className = "badge";
+      document.getElementById('ledText').innerText = "ĐANG GỬI...";
+      db.ref("/HeThong/DieuKhien/LED").set(state);
+    }
+
+    function resetEsp32() {
+      if (confirm("Bạn chắc chắn muốn khởi động lại mạch ESP32?")) {
+        db.ref("/HeThong/DieuKhien/Reset").set(1);
+        alert("Đã gửi lệnh Reset xuống ESP32!");
+      }
+    }
+
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById("loginBox").classList.add("hidden");
+        document.getElementById("appBox").classList.remove("hidden");
+
+        const isAdmin = user.email === ADMIN_EMAIL;
+        const roleTag = document.getElementById("roleTag");
+        roleTag.innerText = isAdmin ? "Quản lý ESP32" : "Tài khoản Test";
+        roleTag.className = isAdmin ? "role-tag admin" : "role-tag";
+        document.getElementById("adminBox").classList.toggle("hidden", !isAdmin);
+
+        camBienRef = db.ref("/HeThong/CamBien");
+        camBienRef.on("value", snap => {
+          const data = snap.val();
+          if (!data) return;
+
+          if (!data.i2c_ok) {
+            setStatus("Mất kết nối I2C với Arduino!", "#fee2e2", "#b91c1c");
+          } else if (data.status !== 0) {
+            setStatus("Lỗi đọc cảm biến DHT11!", "#fef3c7", "#b45309");
+          } else {
+            document.getElementById('t1').innerText = Number(data.temp1).toFixed(1);
+            document.getElementById('t2').innerText = Number(data.temp2).toFixed(1);
+            document.getElementById('h1').innerText = Number(data.hum1).toFixed(0);
+            document.getElementById('h2').innerText = Number(data.hum2).toFixed(0);
+            capNhatTrangThaiLedUI(Number(data.led));
+            setStatus("Hệ thống hoạt động bình thường", "#dcfce7", "#15803d");
+            document.getElementById('lastUpdate').innerText = "Cập nhật lúc: " + new Date().toLocaleTimeString('vi-VN');
+          }
+        });
+      } else {
+        document.getElementById("loginBox").classList.remove("hidden");
+        document.getElementById("appBox").classList.add("hidden");
+      }
+    });
+  </script>
+</body>
+</html>
